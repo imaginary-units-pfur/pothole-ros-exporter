@@ -2,6 +2,8 @@ import rclpy
 from rclpy.node import Node
 import requests
 import time
+import gzip
+import base64
 
 from sensor_msgs.msg import Image, NavSatFix
 
@@ -30,7 +32,7 @@ class ImageUploader(Node):
     
     def gps_listener_callback(self, msg):
         self.get_logger().info("GPS received!")
-        self.gps = gps
+        self.gps = msg
         self.maybe_send()
 
     def maybe_send(self):
@@ -39,7 +41,18 @@ class ImageUploader(Node):
                 self.get_logger().info("Missing some data, not sending yet")
                 return
             self.get_logger().info("Sending data!")
-            ...
+            lat = self.gps.latitude
+            lon = self.gps.longitude
+            data = bytes(self.image.data)
+            shape = (self.image.width, self.image.height)
+            jdata = {
+                'latitude': lat, 'longitude': lon,
+                'image_shape': shape, 'image_encoding': self.image.encoding,
+                'image_bigendian': self.image.is_bigendian,
+                'image_step': self.image.step,
+                'image_data_gzip_base64': base64.b64encode(gzip.compress(data)).decode()
+            }
+            requests.post('http://10.0.0.128:8080/analyze', json=jdata)
             self.last_send = time.time()
             self.image = None
             self.gps = None
